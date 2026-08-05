@@ -1,25 +1,4 @@
-# Helm
-chart/charts/
-chart/Chart.lock
-
-# Dev environment
-dev/.cache/
-
-# Docs (Docusaurus)
-docs/node_modules/
-docs/build/
-docs/.docusaurus/
-docs/.cache-loader/
-
-# Local agent / contributor playbook (not for the public repo)
-AGENT.md
-AGENTS.md
-
-# Misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-npm-debug.log*
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/

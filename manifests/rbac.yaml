@@ -1,0 +1,39 @@
+# RBAC for the submitter (the checkmaite api pod, in production). Namespaced
+# Role only: the api can be granted per-group namespaces one RoleBinding at a
+# time — that grant IS the authorization model, replacing "anyone who can
+# reach ray:10001 can do anything".
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cm-rayjob-submitter
+  namespace: geraci-poc
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cm-rayjob-submitter
+  namespace: geraci-poc
+rules:
+  - apiGroups: ["ray.io"]
+    resources: ["rayjobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cm-rayjob-submitter
+  namespace: geraci-poc
+subjects:
+  - kind: ServiceAccount
+    name: cm-rayjob-submitter
+    namespace: geraci-poc
+roleRef:
+  kind: Role
+  name: cm-rayjob-submitter
+  apiGroup: rbac.authorization.k8s.io

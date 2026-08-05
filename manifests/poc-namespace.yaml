@@ -1,0 +1,21 @@
+# One namespace per group is the isolation unit: quota, node pools, RBAC and
+# NetworkPolicy all attach here. This POC namespace carries a small quota so
+# demo_stub.py can prove quota rejection is a clean, observable failure.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: geraci-poc
+  labels:
+    checkmaite.io/group: geraci
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: geraci-poc-quota
+  namespace: geraci-poc
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 6Gi
+    limits.cpu: "8"
+    limits.memory: 12Gi
