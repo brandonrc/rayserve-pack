@@ -49,6 +49,10 @@ class JobPayload:
     # Forwarded as run_kwargs["_analytics_store"]; workers must reach this URI
     # with their own credentials (same contract as the existing ray backend).
     analytics_store: dict[str, Any] | None = None
+    # DEMO ONLY: base64 tar.gz unpacked to /tmp/cm-rayjob-data before loading,
+    # so a self-contained demo can ship a tiny dataset without shared storage.
+    # Real deployments point dataset specs at storage all jobs can reach.
+    bootstrap_b64: str | None = None
 
     def to_b64(self) -> str:
         return base64.b64encode(json.dumps(asdict(self)).encode()).decode()

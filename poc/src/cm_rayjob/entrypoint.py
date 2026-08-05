@@ -48,11 +48,14 @@ def _load_datasets(task: str, records: list[dict[str, Any]]) -> list[Any]:
         from checkmaite.core.object_detection.dataset_loaders import load_datasets
     else:
         from checkmaite.core.image_classification.dataset_loaders import load_datasets
+    # Records are the core DatasetSpecification shape plus an "id" key
+    # (dataset_format / data_dir / split_folder for image classification).
     specs = {}
     for record in records:
         record = dict(record)
         rid = record.pop("id")
-        specs[rid] = {"dataset_type": record.pop("resource_type"), **record}
+        record.pop("resource_type", None)
+        specs[rid] = record
     return list(load_datasets(specs).values())
 
 
@@ -75,6 +78,16 @@ def main() -> None:
     payload = JobPayload.from_b64(parser.parse_args().payload_b64)
     assert payload.mode == "capability", "stub payloads use the inline script"
     assert payload.capability_class, "capability mode requires capability_class"
+
+    if payload.bootstrap_b64:  # DEMO ONLY — see payload.py
+        import base64
+        import io
+        import tarfile
+
+        with tarfile.open(
+            fileobj=io.BytesIO(base64.b64decode(payload.bootstrap_b64)), mode="r:gz"
+        ) as tar:
+            tar.extractall("/tmp/cm-rayjob-data")  # noqa: S202 - demo payload, own job sandbox
 
     from checkmaite.jobs.backends.ray.controller import _execute_capability_ref
 
