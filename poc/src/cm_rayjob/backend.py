@@ -57,6 +57,9 @@ _STUB_SCRIPT = textwrap.dedent(
         "report": None,
     }
     print("CM_RAYJOB_RESULT:" + json.dumps(ref), flush=True)
+    # POC result channel is the submitter's log tail; it polls, so give it a
+    # beat to catch the final line (production: write to the analytics store).
+    time.sleep(4)
     """
 ).strip()
 
@@ -79,7 +82,11 @@ class RayJobK8sBackend:
         image: str = "rayproject/ray:2.43.0",
         head_cpu: str = "500m",
         head_memory: str = "2Gi",
-        ttl_seconds_after_finished: int = 600,
+        # NOTE: in KubeRay this delays CLUSTER TEARDOWN after the job
+        # finishes (the CR itself persists as the durable job record). Keep it
+        # short: a lingering cluster holds real namespace quota — with N
+        # finished-but-lingering clusters you can starve the next submission.
+        ttl_seconds_after_finished: int = 30,
         active_deadline_seconds: int = 6 * 3600,
         # pip requirements for capability-mode jobs (per-job env pinning);
         # e.g. ["checkmaite==0.3.0", "git+https://github.com/<fork>#subdirectory=poc"]

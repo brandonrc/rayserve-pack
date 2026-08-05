@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import time
 from typing import Any
 
 from cm_rayjob.payload import JobPayload
@@ -98,6 +99,9 @@ def main() -> None:
 
     ref = _execute_capability_ref(capability, run_kwargs)
     print(SENTINEL + json.dumps(ref.model_dump(mode="json")), flush=True)
+    # POC result channel is the submitter's log tail; it polls, so give it a
+    # beat to catch the final line (production: write to the analytics store).
+    time.sleep(4)
 
 
 if __name__ == "__main__":

@@ -179,7 +179,12 @@ class RayJobHandle:
             return None
         for line in reversed(logs.splitlines()):
             if RESULT_SENTINEL in line:
-                return json.loads(line.split(RESULT_SENTINEL, 1)[1])
+                # The submitter's log tail can duplicate segments on one line
+                # (no newline between repeats) — decode the first JSON object
+                # and ignore anything after it.
+                raw = line.split(RESULT_SENTINEL, 1)[1]
+                payload, _ = json.JSONDecoder().raw_decode(raw)
+                return payload
         return None
 
     def _tail_logs(self, lines: int = 5) -> str | None:
