@@ -47,13 +47,33 @@ reuses checkmaite's own `_execute_capability_ref`, so capability runs,
 analytics-store writes, and `CapabilityRunRef` construction are the same code
 path as the existing backend.
 
-## Measured results (Level A, kind on an M-series Mac, image cached)
+## Measured results
+
+**Level A (stub lifecycle)** — identical on kind (M-series Mac) and a real
+x86 cluster (rocky, 88 CPU / 156Gi):
 
 ```
 submit (CR created):        15 ms
 first RUNNING observed:     15.8 s   <- ephemeral cluster spin-up + job start
-terminal (5 s workload):    25.0 s
+terminal (5 s workload):    25.0 s   (26.4 s on rocky)
 ```
+
+**Level B (real capability)** — checkmaite `DataevalCleaning` end-to-end on
+rocky, environment pinned per-job via `runtimeEnvYAML`
+(`checkmaite==0.3.0`, driver running a different env entirely):
+
+```
+COMPLETED in 3.2 min       <- includes in-job pip resolve + torch imports
+  capability_id: ...dataeval_cleaning_capability.DataevalCleaning
+  store_uri:     .../dataeval_cleaning/<ts>_<id>.parquet   (analytics write)
+  report:        <present>                                 (typed report)
+```
+
+**Multi-group demo (`demo/demo_groups.py`)** — the full tenancy line, live on
+rocky against a real Keycloak: alice/bob group claims → namespace mapping →
+concurrent isolated clusters (37.8 s for both) → RBAC cross-namespace deny →
+quota blast-radius containment → per-scope visibility. See `DEMO.md` for the
+review walkthrough.
 
 All protocol-contract checks pass (`demo/demo_stub.py`): failure →
 `JobFailedError` carrying the real error, cancel mid-flight → `CANCELLED`
@@ -73,13 +93,28 @@ minutes, not seconds — mitigations below.
 3. **Autoscaler headroom** (balloon pods) on the GPU pool.
 4. **`spec.clusterSelector`**: a RayJob can target an *existing* RayCluster — same CR lifecycle/status/Kueue machinery, zero spin-up. A per-group long-lived cluster managed through the same submit/watch code; flip individual jobs to ephemeral only when they need the isolation.
 
-### Operational finding worth knowing
+### Operational findings (all hit for real during the POC)
 
-`ttlSecondsAfterFinished` delays **cluster teardown** (the CR persists
-regardless). A finished-but-lingering cluster holds real namespace quota — in
-testing, three lingering head pods starved the next submission's pods
-entirely. Keep TTL short and size `ResourceQuota` for
-`max concurrent jobs × cluster footprint` across the TTL window.
+- `ttlSecondsAfterFinished` delays **cluster teardown** (the CR persists
+  regardless). A finished-but-lingering cluster holds real namespace quota —
+  three lingering head pods starved the next submission entirely. Keep TTL
+  short; size `ResourceQuota` for `max concurrent jobs × footprint × TTL window`.
+- **Many-core hosts inflate Ray's memory**: Ray sizes thread pools / malloc
+  arenas / object store from the *machine* (88 cores, 156Gi), not the cgroup —
+  heads OOMKilled at 2Gi that ran fine on kind. Fix: explicit
+  `object-store-memory`, 4Gi head default, `MALLOC_ARENA_MAX=2`. Budget ~2.5Gi
+  for Ray's control processes before workload memory.
+- **Runtime pip envs inherit the image's baked packages**
+  (`--system-site-packages`): the image's old pydantic satisfied checkmaite's
+  `>=2.0` floor and broke at import; loose pins install nothing. Workable for
+  a POC with hard pins — production should **bake job images per checkmaite
+  release** (the graduation plan), which also removes the ~2 min pip-resolve
+  from the job path.
+- **Spec contracts version with the pinned checkmaite** (0.3.0 wants
+  `dataset_type`, main wants `dataset_format`): the payload schema must be
+  versioned alongside the job image. Per-job pinning makes this explicit
+  instead of a silent api↔worker skew — that's the feature working as
+  intended.
 
 ## Layout
 

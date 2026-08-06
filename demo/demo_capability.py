@@ -69,10 +69,15 @@ def main() -> None:
         namespace=args.namespace,
         scope=SCOPE,
         image=args.image,
-        head_memory="3Gi",
+        # Ray's control processes alone hold ~2.5GB; checkmaite's torch-heavy
+        # imports need real headroom on top.
+        head_memory="8Gi",
         # Per-job env pinning: the job installs ITS OWN checkmaite (and this
         # package for the entrypoint), independent of the driver's versions.
-        capability_pip=["checkmaite==0.3.0", args.pip_ref],
+        # pydantic pinned explicitly: checkmaite's >=2.0.0 floor is satisfied
+        # by the Ray image's baked (older) pydantic, which predates the
+        # TypeVar features checkmaite's models use — force a current one.
+        capability_pip=["checkmaite==0.3.0", "pydantic>=2.13", args.pip_ref],
         # pip resolution + import of torch-heavy deps takes a while
         active_deadline_seconds=45 * 60,
     )
@@ -88,9 +93,12 @@ def main() -> None:
         ),
         task="image_classification",
         datasets=[
+            # checkmaite==0.3.0 spec shape (dataset_type); post-0.3.0 main
+            # switched to dataset_format — the payload pins to the job's
+            # checkmaite version, exactly as designed.
             {
                 "id": "tiny-demo",
-                "dataset_format": "yolo",
+                "dataset_type": "YoloClassificationDataset",
                 "data_dir": DATA_ROOT,
                 "split_folder": "test",
             }
@@ -101,7 +109,7 @@ def main() -> None:
 
     print("submitting DataevalCleaning RayJob (pip env resolves in-job)...")
     t0 = time.monotonic()
-    job = backend.submit_capability(payload, resources={"num_cpus": 2.0, "memory": "3Gi"})
+    job = backend.submit_capability(payload, resources={"num_cpus": 2.0, "memory": "8Gi"})
     print(f"  submitted {job.job_id} as CR in {time.monotonic() - t0:.2f}s")
 
     ref = job.result(timeout=45 * 60)
