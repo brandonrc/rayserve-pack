@@ -28,8 +28,7 @@ import numpy as np
 
 from cm_rayjob import JobPayload, RayJobK8sBackend
 
-NAMESPACE = "geraci-poc"
-SCOPE = "geraci-demo-capability"
+SCOPE = "demo-capability"
 DATA_ROOT = "/tmp/cm-rayjob-data/dataset"
 
 
@@ -59,6 +58,7 @@ def tiny_yolo_classification_tar_b64() -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="rayproject/ray:2.43.0-py311")
+    parser.add_argument("--namespace", default="geraci-poc")
     parser.add_argument(
         "--pip-ref",
         default="git+https://github.com/brandonrc/rayserve-pack@main#subdirectory=poc",
@@ -66,7 +66,7 @@ def main() -> None:
     args = parser.parse_args()
 
     backend = RayJobK8sBackend(
-        namespace=NAMESPACE,
+        namespace=args.namespace,
         scope=SCOPE,
         image=args.image,
         head_memory="3Gi",
