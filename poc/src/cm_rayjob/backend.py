@@ -81,7 +81,10 @@ class RayJobK8sBackend:
         scope: str,
         image: str = "rayproject/ray:2.43.0",
         head_cpu: str = "500m",
-        head_memory: str = "2Gi",
+        # On high-core hosts Ray's process tree sizes thread pools and malloc
+        # arenas from the MACHINE's core count, inflating RSS well past what
+        # the same head needs on a small node — 4Gi keeps headroom.
+        head_memory: str = "4Gi",
         # NOTE: in KubeRay this delays CLUSTER TEARDOWN after the job
         # finishes (the CR itself persists as the durable job record). Keep it
         # short: a lingering cluster holds real namespace quota — with N
@@ -118,13 +121,21 @@ class RayJobK8sBackend:
         return {
             "rayVersion": self._image.split(":")[1].split("-")[0],
             "headGroupSpec": {
-                "rayStartParams": {},
+                # Cap the object store explicitly: on cgroup-v1 runtimes Ray
+                # can size it from HOST memory (e.g. 30% of 156Gi) and blow
+                # straight through the container limit -> OOMKilled.
+                "rayStartParams": {"object-store-memory": "536870912"},
                 "template": {
                     "spec": {
                         "containers": [
                             {
                                 "name": "ray-head",
                                 "image": self._image,
+                                # Tame per-core memory scaling on big hosts.
+                                "env": [
+                                    {"name": "MALLOC_ARENA_MAX", "value": "2"},
+                                    {"name": "RAY_num_heartbeats_timeout", "value": "60"},
+                                ],
                                 "resources": {
                                     "requests": {
                                         "cpu": self._head_cpu,

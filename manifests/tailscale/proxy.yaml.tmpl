@@ -1,0 +1,63 @@
+# Tailscale ingress proxy — one Deployment per public hostname.
+# Renders with: TS_HOST (device/hostname), TS_BACKEND (serve.json Proxy target)
+# Apply via manifests/tailscale/deploy.sh (fills the template + creates the
+# authkey secret). TLS is terminated by tailscale with a real ts.net cert.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ts-${TS_HOST}-serve
+  namespace: tailscale-ingress
+data:
+  serve.json: |
+    {
+      "TCP": {"443": {"HTTPS": true}},
+      "Web": {
+        "${TS_HOST}.possum-fujita.ts.net:443": {
+          "Handlers": {"/": {"Proxy": "${TS_BACKEND}"}}
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-${TS_HOST}
+  namespace: tailscale-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ts-${TS_HOST}}
+  template:
+    metadata:
+      labels: {app: ts-${TS_HOST}}
+    spec:
+      serviceAccountName: tailscale-ingress
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:latest
+          env:
+            - name: TS_HOSTNAME
+              value: "${TS_HOST}"
+            - name: TS_KUBE_SECRET
+              value: "ts-${TS_HOST}-state"
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_SERVE_CONFIG
+              value: /config/serve.json
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: ts-authkey
+                  key: authkey
+                  optional: true   # only needed for first login; state persists
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          volumeMounts:
+            - mountPath: /config
+              name: serve-config
+              readOnly: true
+      volumes:
+        - name: serve-config
+          configMap:
+            name: ts-${TS_HOST}-serve
