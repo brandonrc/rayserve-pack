@@ -1,0 +1,56 @@
+{{- if .Values.nebariapp.enabled }}
+{{- range $group := .Values.groups }}
+{{- $ns := include "group-ray.namespace" $group }}
+{{- $name := include "group-ray.clusterName" $group }}
+{{- $ctx := dict "root" $ "group" $group }}
+{{- $host := include "group-ray.hostname" (dict "root" $ "group" $group) }}
+# Group-gated dashboard. auth.groups=[{{ $group.name }}] is the single source of
+# truth the operator turns into BOTH:
+#   - status.serviceDiscovery.requiredGroups -> landing page shows the card only
+#     to members of {{ $group.name }}
+#   - the Keycloak/Envoy OIDC session on {{ $host }}
+# The head is always up, so this URL always resolves — but it only has workers
+# to show while someone in {{ $group.name }} is actually running something.
+apiVersion: reconcilers.nebari.dev/v1
+kind: NebariApp
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+spec:
+  hostname: {{ $host }}
+  service:
+    name: {{ $name }}-head-svc
+    port: 8265
+  routing:
+    routes:
+      - pathPrefix: /
+        pathType: PathPrefix
+  auth:
+    enabled: {{ $.Values.nebariapp.auth.enabled }}
+    provider: {{ $.Values.nebariapp.auth.provider }}
+    provisionClient: {{ $.Values.nebariapp.auth.provisionClient }}
+    redirectURI: {{ $.Values.nebariapp.auth.redirectURI }}
+    scopes:
+      {{- toYaml $.Values.nebariapp.auth.scopes | nindent 6 }}
+    groups:
+      - {{ $group.name }}
+  {{- with $.Values.nebariapp.landingPage }}
+  landingPage:
+    enabled: {{ .enabled }}
+    displayName: {{ $group.displayName | default (printf "%s — Ray" $group.name) | quote }}
+    description: {{ $group.description | default (printf "Ray cluster for the %s group (workers scale from zero on demand)" $group.name) | quote }}
+    category: {{ .category | quote }}
+    priority: {{ .priority }}
+    icon: {{ .icon | quote }}
+    {{- with .healthCheck }}
+    healthCheck:
+      enabled: {{ .enabled }}
+      path: {{ .path | quote }}
+    {{- end }}
+  {{- end }}
+  gateway: {{ $.Values.nebariapp.gateway }}
+---
+{{- end }}
+{{- end }}

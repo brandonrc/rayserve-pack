@@ -1,0 +1,107 @@
+# =============================================================================
+# nebari-group-ray — one Ray stack per group, no controller required
+# =============================================================================
+# The whole tenancy model is this list. Add a group here (and to Keycloak) and
+# the chart renders its namespace, quota, submitter RBAC, a tiny always-on Ray
+# head (dashboard URL always resolves), autoscaling workers that idle at ZERO,
+# and a NebariApp card gated to that group.
+#
+#   groups:
+#     - name: apple                    # must match the Keycloak group name
+#       hostname: apple-ray.example.com
+#       quota: {requests.cpu: "8", requests.memory: 16Gi}
+#       worker: {maxReplicas: 3, cpu: "2", memory: 6Gi}      # scales 0..max
+#       gpuWorker: {maxReplicas: 1, gpus: 1}                 # optional, 0..max
+#
+# Idle cost per group = one head pod (headResources below). Everything else
+# materializes when a job asks for it and drains after idleTimeoutSeconds.
+groups: []
+
+# Hostname suffix used when a group sets no explicit hostname:
+#   <group>-ray.<hostnameSuffix>
+hostnameSuffix: ""
+
+image:
+  repository: rayproject/ray
+  tag: "2.43.0"
+  pullPolicy: IfNotPresent
+
+# The always-on part: keep it small. The head runs no tasks
+# (rayStartParams num-cpus: 0), it only serves the dashboard, GCS, and the
+# client port so the group's UI and submissions always have an endpoint.
+headResources:
+  requests: {cpu: 250m, memory: 2Gi}
+  limits: {cpu: "1", memory: 4Gi}
+
+# Ray sizes memory from the machine, not the cgroup, on big hosts — cap the
+# object store and malloc arenas or heads get OOMKilled.
+objectStoreMemoryBytes: 536870912
+mallocArenaMax: "2"
+
+autoscaling:
+  enabled: true
+  # How long a worker may sit idle before Ray gives the pod back.
+  idleTimeoutSeconds: 120
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 1Gi}
+
+# Defaults for each group's CPU worker group (overridable per group).
+worker:
+  minReplicas: 0        # zero = nothing running when nobody is working
+  maxReplicas: 3
+  cpu: "2"
+  memory: 6Gi
+
+# Defaults for the optional GPU worker group (only rendered when a group sets
+# gpuWorker). Also starts at zero.
+gpuWorker:
+  minReplicas: 0
+  maxReplicas: 1
+  gpus: 1
+  cpu: "4"
+  memory: 16Gi
+  # Scheduling for GPU nodes; the nvidia.com/gpu toleration is added
+  # automatically when gpus > 0.
+  nodeSelector: {}
+  runtimeClassName: ""
+
+# Namespace-level ResourceQuota defaults (per group).
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+
+# NebariApp per group: routes <group>'s hostname to its Ray dashboard, gated by
+# Keycloak with auth.groups=[<group>]. The operator publishes that group into
+# status.serviceDiscovery.requiredGroups, which is what makes the landing-page
+# card visible only to members.
+nebariapp:
+  enabled: true
+  gateway: public
+  auth:
+    enabled: true
+    provider: keycloak
+    provisionClient: true
+    redirectURI: /oauth2/callback
+    scopes: [openid, profile, email]
+  landingPage:
+    enabled: true
+    category: "Compute"
+    priority: 25
+    icon: "https://raw.githubusercontent.com/ray-project/ray/master/doc/source/images/serve.svg"
+    healthCheck:
+      enabled: true
+      path: /api/version
+
+# Create the namespaces (set false when a GitOps layer owns them).
+createNamespaces: true
+
+# Submitter ServiceAccount + Role per group namespace, so a shared api (or the
+# Tier-3 RayJob backend) can submit into a group's namespace and nowhere else.
+submitterRBAC:
+  enabled: true
+  name: cm-rayjob-submitter

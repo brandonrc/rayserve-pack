@@ -1,0 +1,9 @@
+apiVersion: v2
+name: nebari-group-ray
+description: >-
+  Per-group Ray stacks from one values list: each group gets a namespace with a
+  quota, a tiny always-on Ray head (so its dashboard URL always resolves),
+  autoscaling workers that idle at zero, and a group-gated NebariApp card.
+type: application
+version: 0.1.0
+appVersion: "2.43.0"

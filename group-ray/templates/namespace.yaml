@@ -1,0 +1,77 @@
+{{- range $group := .Values.groups }}
+{{- $ns := include "group-ray.namespace" $group }}
+{{- $ctx := dict "root" $ "group" $group }}
+{{- if $.Values.createNamespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+    # required for the nebari-operator to reconcile NebariApps here
+    nebari.dev/managed: "true"
+---
+{{- end }}
+{{- if $.Values.quota.enabled }}
+{{- $quota := fromYaml (include "group-ray.merged" (dict "default" $.Values.quota.hard "override" $group.quota)) }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ $ns }}-quota
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+spec:
+  # Caps this group only: a runaway job burns its own budget, never the
+  # cluster's. Size for peak concurrency, not for the idle head.
+  hard:
+    {{- toYaml $quota | nindent 4 }}
+---
+{{- end }}
+{{- if $.Values.submitterRBAC.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $.Values.submitterRBAC.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Values.submitterRBAC.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+# This grant IS the authorization model for submissions: an api holding a
+# RoleBinding here can submit into THIS group's namespace and nowhere else.
+rules:
+  - apiGroups: ["ray.io"]
+    resources: ["rayjobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Values.submitterRBAC.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Values.submitterRBAC.name }}
+    namespace: {{ $ns }}
+roleRef:
+  kind: Role
+  name: {{ $.Values.submitterRBAC.name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,121 @@
+{{- range $group := .Values.groups }}
+{{- $ns := include "group-ray.namespace" $group }}
+{{- $name := include "group-ray.clusterName" $group }}
+{{- $ctx := dict "root" $ "group" $group }}
+{{- $worker := fromYaml (include "group-ray.merged" (dict "default" $.Values.worker "override" $group.worker)) }}
+{{- $image := printf "%s:%s" $.Values.image.repository $.Values.image.tag }}
+{{- if $group.image }}{{ $image = $group.image }}{{ end }}
+# One long-lived, near-empty cluster per group: the head exists so
+# <group>'s dashboard URL always resolves and submissions always have an
+# endpoint, but it schedules NOTHING (num-cpus: 0). All real work runs on
+# workers that start at {{ $worker.minReplicas }} and drain back to it after
+# {{ $.Values.autoscaling.idleTimeoutSeconds }}s idle.
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+spec:
+  rayVersion: {{ $.Values.image.tag | quote }}
+  {{- if $.Values.autoscaling.enabled }}
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    idleTimeoutSeconds: {{ $.Values.autoscaling.idleTimeoutSeconds }}
+    upscalingMode: Default
+    resources:
+      {{- toYaml $.Values.autoscaling.resources | nindent 6 }}
+  {{- end }}
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      # keep the always-on head free of workload placement
+      num-cpus: "0"
+      object-store-memory: {{ printf "%.0f" (float64 $.Values.objectStoreMemoryBytes) | quote }}
+    template:
+      metadata:
+        labels:
+          {{- include "group-ray.labels" $ctx | nindent 10 }}
+      spec:
+        containers:
+          - name: ray-head
+            image: {{ $image | quote }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            env:
+              - name: MALLOC_ARENA_MAX
+                value: {{ $.Values.mallocArenaMax | quote }}
+            resources:
+              {{- toYaml (fromYaml (include "group-ray.merged" (dict "default" $.Values.headResources "override" $group.headResources))) | nindent 14 }}
+            ports:
+              - {containerPort: 6379, name: gcs-server}
+              - {containerPort: 8265, name: dashboard}
+              - {containerPort: 10001, name: client}
+  workerGroupSpecs:
+    - groupName: cpu
+      replicas: {{ $worker.minReplicas }}
+      minReplicas: {{ $worker.minReplicas }}
+      maxReplicas: {{ $worker.maxReplicas }}
+      rayStartParams:
+        object-store-memory: {{ printf "%.0f" (float64 $.Values.objectStoreMemoryBytes) | quote }}
+      template:
+        metadata:
+          labels:
+            {{- include "group-ray.labels" $ctx | nindent 12 }}
+        spec:
+          containers:
+            - name: ray-worker
+              image: {{ $image | quote }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              env:
+                - name: MALLOC_ARENA_MAX
+                  value: {{ $.Values.mallocArenaMax | quote }}
+              resources:
+                requests: {cpu: {{ $worker.cpu | quote }}, memory: {{ $worker.memory }}}
+                limits: {cpu: {{ $worker.cpu | quote }}, memory: {{ $worker.memory }}}
+    {{- if $group.gpuWorker }}
+    {{- $gpu := fromYaml (include "group-ray.merged" (dict "default" $.Values.gpuWorker "override" $group.gpuWorker)) }}
+    # Optional GPU pool for this group — also idles at {{ $gpu.minReplicas }}.
+    - groupName: gpu
+      replicas: {{ $gpu.minReplicas }}
+      minReplicas: {{ $gpu.minReplicas }}
+      maxReplicas: {{ $gpu.maxReplicas }}
+      rayStartParams:
+        object-store-memory: {{ printf "%.0f" (float64 $.Values.objectStoreMemoryBytes) | quote }}
+      template:
+        metadata:
+          labels:
+            {{- include "group-ray.labels" $ctx | nindent 12 }}
+        spec:
+          {{- with $gpu.runtimeClassName }}
+          runtimeClassName: {{ . }}
+          {{- end }}
+          {{- with $gpu.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if gt (int $gpu.gpus) 0 }}
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          {{- end }}
+          containers:
+            - name: ray-worker
+              image: {{ $image | quote }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              env:
+                - name: MALLOC_ARENA_MAX
+                  value: {{ $.Values.mallocArenaMax | quote }}
+              resources:
+                requests:
+                  cpu: {{ $gpu.cpu | quote }}
+                  memory: {{ $gpu.memory }}
+                  nvidia.com/gpu: {{ $gpu.gpus }}
+                limits:
+                  cpu: {{ $gpu.cpu | quote }}
+                  memory: {{ $gpu.memory }}
+                  nvidia.com/gpu: {{ $gpu.gpus }}
+    {{- end }}
+---
+{{- end }}
