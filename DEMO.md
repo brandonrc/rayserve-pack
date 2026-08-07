@@ -60,13 +60,16 @@ kubectl get resourcequota -n cm-team-a   # watch the quota fill and drain
 
 ## Act 2 — the browser story (tailscale required)
 
-1. Open `https://keycloak-demo.possum-fujita.ts.net/auth` → admin console
-   (admin / nebari-admin) → realm `nebari` → Users / Groups. *One place to
-   add someone to team-a.*
-2. Open a gateway-fronted app (e.g. the Ray dashboard NebariApp at
-   `https://ray-demo.possum-fujita.ts.net`) in a private window → redirected
-   to Keycloak → log in as **bob:bob** → back through the gateway with the
-   IdToken cookie. *This is the identical claim path the CLI demo used.*
+1. **Start at the portal**: `https://nebari-demo.possum-fujita.ts.net` — the
+   nebari-landing launchpad. Sign in (keycloak-js PKCE) as **bob:bob**; the
+   app cards (Ray Dashboard) come from NebariApp CRs with health checks.
+2. Click through to the Ray dashboard (`ray-demo.possum-fujita.ts.net`) in a
+   private window → redirected to Keycloak → log in as **bob:bob** → back
+   through the gateway with the IdToken cookie. *Identical claim path to the
+   CLI demo.*
+3. `https://keycloak-demo.possum-fujita.ts.net/auth` → admin console
+   (admin / admin master, or admin / nebari-admin in realm `nebari`) → Users /
+   Groups. *One place to add someone to team-a.*
 
 ## Act 3 — durability + cleanup (30 seconds)
 
