@@ -1,0 +1,45 @@
+{{- range $group := .Values.groups }}
+{{- $ns := include "group-ray.namespace" $group }}
+{{- $name := include "group-ray.clusterName" $group }}
+{{- $ctx := dict "root" $ "group" $group }}
+{{- $warm := $.Values.warmByDefault }}
+{{- if hasKey $group "warm" }}{{ $warm = $group.warm }}{{ end }}
+# A stable ClusterIP Service for the group's dashboard.
+#
+# Two reasons this exists instead of pointing the NebariApp straight at
+# KubeRay's <cluster>-head-svc:
+#   1. KubeRay's head service is HEADLESS (clusterIP: None). Envoy Gateway
+#      cannot route an HTTPRoute to a headless backend — requests hang and the
+#      browser gets "upstream request timeout".
+#   2. The selector depends on whether the group is warm:
+#      - warm: PINNED to the group's own cluster. Ephemeral per-job clusters
+#        run in this same namespace and also carry ray.io/node-type=head, so an
+#        unpinned selector would round-robin between the warm dashboard and
+#        each job's dashboard — the same URL would show a job on one request
+#        and not the next.
+#      - dormant: matches any head, because the only head that will ever exist
+#        here belongs to a job. The URL is dark until someone submits, then
+#        serves that job's dashboard for as long as it runs.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-dashboard
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    ray.io/node-type: head
+    {{- if $warm }}
+    ray.io/cluster: {{ $name }}
+    {{- end }}
+  ports:
+    - name: dashboard
+      port: 8265
+      targetPort: 8265
+    - name: client
+      port: 10001
+      targetPort: 10001
+---
+{{- end }}
