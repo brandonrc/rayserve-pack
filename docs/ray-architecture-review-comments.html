@@ -1,0 +1,490 @@
+<title>Review comments — Proposed Ray Architecture (rev c9044c211a88)</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #f4f6f6;
+    --panel: #ffffff;
+    --ink: #12181a;
+    --ink-soft: #4a5a5c;
+    --ink-faint: #7d8c8d;
+    --rule: #d8e0df;
+    --rule-strong: #b9c5c4;
+    --accent: #0d6f6a;
+    --accent-soft: #e2efee;
+    --agree: #1f6b4a;
+    --agree-soft: #e3f0e9;
+    --diverge: #8a5314;
+    --diverge-soft: #f6ebdd;
+    --gap: #9b2f26;
+    --gap-soft: #f7e5e3;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1213;
+      --panel: #141b1c;
+      --ink: #e6ecec;
+      --ink-soft: #a3b3b3;
+      --ink-faint: #748484;
+      --rule: #253031;
+      --rule-strong: #354344;
+      --accent: #4bb8b0;
+      --accent-soft: #16302f;
+      --agree: #6fc294;
+      --agree-soft: #14291f;
+      --diverge: #d59a56;
+      --diverge-soft: #2c2317;
+      --gap: #e0837a;
+      --gap-soft: #2e1a18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1213; --panel: #141b1c; --ink: #e6ecec; --ink-soft: #a3b3b3;
+    --ink-faint: #748484; --rule: #253031; --rule-strong: #354344;
+    --accent: #4bb8b0; --accent-soft: #16302f; --agree: #6fc294; --agree-soft: #14291f;
+    --diverge: #d59a56; --diverge-soft: #2c2317; --gap: #e0837a; --gap-soft: #2e1a18;
+  }
+  :root[data-theme="light"] {
+    --ground: #f4f6f6; --panel: #ffffff; --ink: #12181a; --ink-soft: #4a5a5c;
+    --ink-faint: #7d8c8d; --rule: #d8e0df; --rule-strong: #b9c5c4;
+    --accent: #0d6f6a; --accent-soft: #e2efee; --agree: #1f6b4a; --agree-soft: #e3f0e9;
+    --diverge: #8a5314; --diverge-soft: #f6ebdd; --gap: #9b2f26; --gap-soft: #f7e5e3;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+  header.doc { border-bottom: 2px solid var(--rule-strong); padding-bottom: 1.75rem; margin-bottom: 2.5rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.9rem;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(1.7rem, 4vw, 2.4rem);
+    line-height: 1.15; margin: 0 0 0.75rem; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  .standfirst { font-size: 1.06rem; color: var(--ink-soft); max-width: 42rem; margin: 0; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; margin-top: 1.4rem;
+    font-family: var(--mono); font-size: 0.76rem; color: var(--ink-faint);
+  }
+
+  h2 {
+    font-family: var(--serif); font-size: 1.42rem; font-weight: 600; letter-spacing: -0.005em;
+    margin: 3.25rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule);
+    text-wrap: balance;
+  }
+  h3 { font-family: var(--sans); font-size: 1rem; font-weight: 650; margin: 1.75rem 0 0.5rem; }
+  p { margin: 0 0 1rem; max-width: 42rem; }
+  p.wide { max-width: none; }
+  ul { margin: 0 0 1rem; padding-left: 1.15rem; max-width: 42rem; }
+  li { margin-bottom: 0.4rem; }
+  strong { font-weight: 650; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--accent-soft); padding: 0.1em 0.32em; border-radius: 2px;
+  }
+
+  /* comment cards keyed to the proposal's own numbering */
+  .comment {
+    display: grid; grid-template-columns: 7.5rem 1fr; gap: 1.5rem;
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 1.4rem 1.5rem; margin-bottom: 1.1rem;
+  }
+  @media (max-width: 44rem) { .comment { grid-template-columns: 1fr; gap: 0.75rem; } }
+  .key { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-faint); }
+  .key .sec { display: block; font-size: 1.15rem; color: var(--ink); margin-bottom: 0.35rem; }
+  .chip {
+    display: inline-block; font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 0.18rem 0.42rem; border-radius: 2px; margin-top: 0.5rem;
+  }
+  .chip.agree { background: var(--agree-soft); color: var(--agree); }
+  .chip.diverge { background: var(--diverge-soft); color: var(--diverge); }
+  .chip.gap { background: var(--gap-soft); color: var(--gap); }
+  .comment .body > :last-child { margin-bottom: 0; }
+  .comment blockquote {
+    margin: 0 0 0.9rem; padding-left: 0.9rem; border-left: 2px solid var(--rule-strong);
+    color: var(--ink-soft); font-style: italic; max-width: 42rem;
+  }
+
+  pre {
+    font-family: var(--mono); font-size: 0.8rem; line-height: 1.5;
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 2px;
+    padding: 0.85rem 1rem; overflow-x: auto; margin: 0 0 1rem;
+  }
+  :root[data-theme="dark"] pre, @media (prefers-color-scheme: dark) { }
+  .evidence {
+    font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.35rem;
+  }
+
+  .table-scroll { overflow-x: auto; margin: 0 0 1.5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--rule-strong);
+  }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .verdict {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 1.25rem 1.4rem; border-radius: 0 3px 3px 0; margin: 0 0 2rem;
+  }
+  .verdict p { margin-bottom: 0.6rem; }
+  .verdict p:last-child { margin-bottom: 0; }
+
+  .findings { counter-reset: f; list-style: none; padding: 0; max-width: none; }
+  .findings > li {
+    counter-increment: f; display: grid; grid-template-columns: 2rem 1fr; gap: 1rem;
+    padding: 1rem 0; border-bottom: 1px solid var(--rule); margin: 0;
+  }
+  .findings > li::before {
+    content: counter(f); font-family: var(--mono); font-size: 0.95rem; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .findings h3 { margin: 0 0 0.35rem; }
+  .findings p { margin-bottom: 0.5rem; }
+  .findings p:last-child { margin-bottom: 0; }
+
+  footer.doc { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--ink-faint); font-size: 0.86rem; }
+</style>
+
+<div class="wrap">
+<header class="doc">
+  <p class="eyebrow">Review comments · keyed to section numbers</p>
+  <h1>Proposed Ray Architecture — review from a working Tier‑3 deployment</h1>
+  <p class="standfirst">
+    These comments come from building and running the RayJob-per-execution design the proposal
+    lists as “an optional future backend” (§12). Everything cited as evidence was measured on a
+    live cluster running Keycloak, Envoy Gateway, nebari-operator, KubeRay and CheckMAITE, not
+    inferred.
+  </p>
+  <div class="meta">
+    <span>Reviewing rev c9044c211a88</span>
+    <span>Paste each block into its section’s annotation</span>
+    <span>Evidence: rocky, 88 CPU / 156 GiB, CPU-only</span>
+  </div>
+</header>
+
+<div class="verdict">
+  <p><strong>Headline: the two designs are complementary, and the proposal’s central argument for Ray Client does not apply to one of CheckMAITE’s two clients.</strong></p>
+  <p>
+    §12 rejects Ray Jobs because it “would change the current interactive workflow and add startup
+    and preparation time,” since users “would need to package and stage inputs rather than pass live
+    objects.” That is correct for notebooks. It is not true of the web API: the CheckMAITE api never
+    holds live Python objects — it holds catalog records with spec dicts and constructs the objects
+    itself. For that client, declarative submission costs nothing and removes the version-parity
+    coupling entirely.
+  </p>
+  <p>
+    Recommendation: adopt the proposal as written for notebooks, and RayJob CRs for UI/API
+    submissions — one backend per client, selected by configuration. <code>spec.clusterSelector</code>
+    lets those CR-tracked jobs run <em>on</em> the per-group clusters §5 already provisions, which
+    removes the startup-time objection without a second cluster.
+  </p>
+</div>
+
+<h2>What was built and verified</h2>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Measurement</th><th>Result</th><th>Where</th></tr></thead>
+  <tbody>
+    <tr><td>RayJob CR created (submission latency)</td><td class="num">15 ms</td><td>api → Kubernetes API</td></tr>
+    <tr><td>Per-job cluster provisioned → RUNNING</td><td class="num">25–60 s</td><td>KubeRay, warm image</td></tr>
+    <tr><td>DataEval Cleaning, end to end</td><td class="num">~100 s</td><td>ephemeral cluster</td></tr>
+    <tr><td>MAITE evaluation (AlexNet + accuracy), end to end</td><td class="num">~120 s</td><td>ephemeral cluster</td></tr>
+    <tr><td>Autoscaler: idle → worker serving a job</td><td class="num">~15 s</td><td>min 0, KubeRay in-tree</td></tr>
+    <tr><td>Autoscaler: drain back to zero after idle</td><td class="num">120 s</td><td><code>idleTimeoutSeconds</code></td></tr>
+    <tr><td>Warm head idle cost, per group</td><td class="num">350 m CPU / 2.25 GiB</td><td>head + autoscaler sidecar</td></tr>
+    <tr><td>Same, extrapolated to 50 groups</td><td class="num">17.5 CPU / 112 GiB</td><td>pure idle</td></tr>
+    <tr><td>Cross-group dashboard access (non-member)</td><td class="num">403</td><td>Envoy claim authorization</td></tr>
+    <tr><td>Cross-group run access by ID (non-member)</td><td class="num">404</td><td>api group scoping</td></tr>
+    <tr><td>Submission without the entitlement group</td><td class="num">403</td><td>api policy check</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Comments by section</h2>
+
+<div class="comment">
+  <div class="key"><span class="sec">§4</span>Shared model-serving<span class="chip agree">agrees</span></div>
+  <div class="body">
+    <blockquote>“Users access only controlled inference endpoints, not direct Ray Client connections… dashboard API blocked from notebooks.”</blockquote>
+    <p>
+      This control now exists as deployable IaC and is worth adopting rather than re-specifying:
+      the rayserve-pack hardening adds NetworkPolicy allow-listing (intra-Ray plus the KubeRay
+      operator, then only explicitly listed client namespaces) and gateway-side claim
+      authorization, defaulting to deny.
+    </p>
+    <p class="evidence">Verified under an enforcing CNI</p>
+    <pre>unlisted pod  → head:8265   denied (connection timeout)
+allow-listed namespace       → 200 {"ray_version": "2.43.0"}
+non-member browser session   → 403 at the gateway, before the dashboard</pre>
+    <p>
+      One nuance for the doc: Ray’s dashboard REST API can <em>submit and kill</em> jobs, so
+      “blocked from notebooks” has to mean network-level denial, not merely “not documented.”
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§5</span>Interactive environments<span class="chip gap">sizing gap</span></div>
+  <div class="body">
+    <blockquote>“1 head pod (1–2 CPUs, 4 GiB), 1 warm compute worker minimum (2 CPUs, 4–8 GiB)”</blockquote>
+    <p>
+      Both halves of that illustrative shape need revising for how CheckMAITE actually executes today.
+    </p>
+    <p>
+      <strong>The head carries the workload.</strong> A capability run executes in the job driver,
+      which Ray places on the head — so torch, model weights and the dataset all live there. A MAITE
+      evaluation with AlexNet was OOMKilled at 4 GiB. 8 GiB was sufficient.
+    </p>
+    <p class="evidence">Head OOM at the proposal’s illustrative size</p>
+    <pre>1 worker(s) were killed due to the node running low on memory.
+Memory on the node ... was 3.96GB / 4.00GB (0.990109)</pre>
+    <p>
+      <strong>The warm worker idles.</strong> One capability run is one Ray task — there is no
+      fan-out per dataset or datum in 0.3.0. A dashboard sample of a shared cluster showed 16 tasks,
+      all <code>_execute_capability_ref</code>. A minimum worker therefore holds a share of the
+      group’s quota without receiving work; recommend making it opt-in per capability class.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§6</span>Execution lifecycle<span class="chip gap">risk understated</span></div>
+  <div class="body">
+    <p>
+      The registry/controller pair does deliver the stated benefit — work survives notebook
+      disconnection. The failure mode it does <em>not</em> survive deserves naming in this section,
+      because the proposal makes Ray Client the primary path: <strong>a Ray Client session cannot be
+      re-established after the head restarts</strong>, and CheckMAITE has no reconnect logic, so every
+      subsequent submission from that process fails until an operator restarts it.
+    </p>
+    <p class="evidence">Observed after a head pod was recycled; persisted until the api restarted</p>
+    <pre>Failed to submit capability job ...: Request can't be sent because the Ray
+client has already been disconnected due to an error. Last exception:
+  status = StatusCode.NOT_FOUND
+  details = "Attempted to reconnect a session that has already been cleaned up"</pre>
+    <p>
+      Suggested addition to this section: reconnect-on-dead-session is a requirement of the Ray
+      Client path, not an optimization. Also worth verifying before sizing on it — the proposal
+      states the registry reserves 0 Ray CPUs; in checkmaite 0.3.0 no explicit
+      <code>num_cpus</code> is passed when the actor is created, so Ray’s actor default applies.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§8</span>Isolation and authorization<span class="chip agree">agrees, extended</span></div>
+  <div class="body">
+    <blockquote>“A Ray namespace only organizes names and actors inside one Ray cluster; it does not enforce network access, permissions, or resource quotas.”</blockquote>
+    <p>
+      Independently confirmed, and the composite boundary this section defines — separate cluster,
+      namespace, RBAC, NetworkPolicy, credentials, quota — is exactly what we deployed. Two additions
+      from running it:
+    </p>
+    <p>
+      <strong>Separate entitlement from tenancy.</strong> “Which group’s namespace runs my work” and
+      “may I run compute at all” are different questions and belong to different groups. With an
+      entitlement group configured, a user holding a tenancy group but not the entitlement is refused
+      before any record is created.
+    </p>
+    <pre>carol  (cherry + ray-users)  → 202, job runs in cm-cherry
+dave   (cherry, no ray-users) → 403 "membership of 'ray-users' is required to run jobs"</pre>
+    <p>
+      <strong>Name the default for unmapped callers.</strong> Our first implementation fell back to
+      the api’s own namespace when a caller matched no group — which silently runs a stranger’s work
+      in a namespace they have no claim to. Refusing is the correct default and worth stating here.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§9</span>Scaling and scheduling<span class="chip agree">agrees, one trap</span></div>
+  <div class="body">
+    <blockquote>“Kubernetes quotas limit the total size of each group cluster. Ray decides how tasks use that capacity internally.”</blockquote>
+    <p>
+      Confirmed, including scale-to-zero: with <code>minReplicas: 0</code> a submission brought a
+      worker up in ~15 s and the pod was released 120 s after the work finished.
+    </p>
+    <p>
+      The trap to document: <code>ttlSecondsAfterFinished</code> delays <em>cluster teardown</em>,
+      and a finished-but-lingering cluster still holds the namespace’s quota. Three of them starved
+      the next submission in testing. Size quota for
+      <code>max concurrency × cluster footprint</code> across the TTL window, and note that
+      RayService zero-downtime upgrades run the old and new cluster simultaneously — that path wants
+      roughly 2× headroom.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§10</span>Failure and upgrade<span class="chip gap">add three</span></div>
+  <div class="body">
+    <p>Three startup failures that are invisible until you run this on a real cluster:</p>
+    <ul>
+      <li><strong>Probes assume <code>wget</code>.</strong> KubeRay’s default head and worker probes shell out to it; slim Python images (including CheckMAITE’s own api image, the natural job image) do not ship it, so pods never report Ready and the RayJob sits in <code>Initializing</code> until its deadline. A urllib check against the raylet health endpoint needs only the interpreter.</li>
+      <li><strong>Login shells drop the venv.</strong> KubeRay starts Ray with <code>bash -lc</code>; <code>/etc/profile</code> resets <code>PATH</code>, so an image whose entrypoint relies on <code>ENV PATH</code> fails with <code>ray: command not found</code>. A <code>/etc/profile.d</code> snippet fixes it.</li>
+      <li><strong>Ray sizes memory from the machine, not the cgroup.</strong> On an 88-core host, heads were OOMKilled until <code>object-store-memory</code> was capped and <code>MALLOC_ARENA_MAX</code> set. Anything sized per-container needs both.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§11</span>Visibility and operations<span class="chip diverge">mechanism matters</span></div>
+  <div class="body">
+    <blockquote>“CheckMAITE should present one execution ID and one coherent status. Ray actor, task, driver, pod, and node identifiers should remain available behind that execution for troubleshooting.”</blockquote>
+    <p>
+      Agreed as a goal, but the submission mechanism decides whether the second half is achievable.
+      Over Ray Client, every run in a cluster appears as tasks beneath a <em>single long-lived
+      driver</em> — there are no per-run entries in the dashboard’s Jobs view, which is exactly the
+      confusion this section is trying to remove. With a RayJob per execution, each run is a
+      first-class job with its own CR, submitter logs, and cluster, and the CheckMAITE execution ID
+      maps one-to-one onto it.
+    </p>
+    <p>
+      Related operational note for this section: a per-job cluster’s dashboard exists only while the
+      job runs, so “go look at Ray” is a narrow window. Two mitigations we use: raise the cluster TTL
+      to keep a finished job browsable, and give each group a stable hostname whose Service selects
+      whichever job cluster is currently live.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§12</span>Ray Jobs as an alternative<span class="chip diverge">principal comment</span></div>
+  <div class="body">
+    <blockquote>“an optional future backend… would change the current interactive workflow and add startup and preparation time”</blockquote>
+    <p>
+      Both objections are sound for notebooks and neither holds for the web API, which is where most
+      submissions in a deployed product originate.
+    </p>
+    <ul>
+      <li><strong>“Package and stage inputs” is already true there.</strong> The api builds models,
+      datasets and metrics from catalog spec dicts; passing those specs to the job instead of
+      constructing objects first is strictly less work, and it removes the requirement that api and
+      every worker run an identical checkmaite build.</li>
+      <li><strong>Startup time is optional.</strong> <code>RayJob.spec.clusterSelector</code> targets an
+      existing cluster, so a CR-tracked job can run on the per-group cluster §5 provisions with no
+      provisioning at all — the durable record, the namespace boundary and the absent Ray connection,
+      at warm-cluster latency.</li>
+    </ul>
+    <p class="evidence">Both modes implemented and running</p>
+    <pre>per-job cluster   : own environment, private failure domain, 25–60 s spin-up
+clusterSelector   : runs on the group's existing cluster, no spin-up
+selection         : per group, by configuration</pre>
+    <p>
+      Suggested rewrite of this section’s conclusion: Ray Jobs is not a future replacement for Ray
+      Client but the appropriate backend for non-interactive clients, deployable alongside it today.
+    </p>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§13</span>Tradeoffs<span class="chip diverge">costs to add</span></div>
+  <div class="body">
+    <p>The cost list is candid; three more belong on it, all load-bearing:</p>
+    <ul>
+      <li><strong>Version parity is an operational coupling, not just a compatibility note.</strong>
+      Because objects are cloudpickled by reference, any mismatch between the submitting environment
+      and a worker is unrecoverable for in-flight work — and it constrains when either side may be
+      upgraded.</li>
+      <li><strong>The control plane is code someone maintains.</strong> The registry and controller
+      actors, heartbeats, sweeps, retention and backpressure are roughly 1,800 lines of bespoke
+      distributed-systems code in checkmaite. The CR-based adapter that replaces them for the UI path
+      is roughly 400, because Kubernetes holds the state.</li>
+      <li><strong>Storage must be reachable from every group namespace.</strong> A PVC in the api’s
+      namespace is invisible to job pods in a group namespace — a run failed loading its dataset from
+      a path that existed only inside the api. This makes an object store (or an RWX/ROX volume) a
+      requirement of the group-isolation model, not an optimization.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="comment">
+  <div class="key"><span class="sec">§14</span>Key decisions<span class="chip diverge">two to add</span></div>
+  <div class="body">
+    <p>Suggest adding two decisions, both already implemented and running:</p>
+    <ul>
+      <li><strong>Submission backend is chosen per client.</strong> Notebooks keep Ray Client against
+      the group’s persistent cluster; UI and API submissions create a RayJob in the caller’s group
+      namespace. One deployment, two paths, no shared failure mode.</li>
+      <li><strong>Entitlement is a separate group from tenancy.</strong> Membership of an entitlement
+      group grants the right to run compute at all; tenancy groups decide whose namespace, quota and
+      cluster run it. Adding a group is then a Keycloak group plus one values entry.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Six findings, with evidence</h2>
+<p class="wide">
+  Consolidated for the record — each was reproduced on the cluster, and each one changes a number or
+  a requirement somewhere in the proposal.
+</p>
+<ol class="findings">
+  <li>
+    <div>
+      <h3>Ray Client sessions are unrecoverable after a head restart</h3>
+      <p>Affects §6 and §10. Every submission fails until the api process restarts. The primary path in the proposal needs explicit reconnect handling.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>The job driver runs on the head, so the head needs the workload’s memory</h3>
+      <p>Affects §5. OOMKilled at 4 GiB running a MAITE evaluation; 8 GiB sufficient. The illustrative head size will not run that capability.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>A minimum warm worker receives no work today</h3>
+      <p>Affects §5 and §9. One capability run is one Ray task; the reserved worker holds quota without executing anything.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Finished clusters keep holding quota for their TTL</h3>
+      <p>Affects §9. Three lingering clusters blocked the next submission. Quota must cover concurrency × footprint across the TTL window.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Slim images break KubeRay’s defaults in two places</h3>
+      <p>Affects §10. Probes need <code>wget</code>; login shells reset <code>PATH</code>. Both leave a cluster stuck in <code>Initializing</code> with no obvious cause.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Group isolation forces the storage decision</h3>
+      <p>Affects §8 and §13. Job pods cannot mount the api namespace’s PVC, so shared object storage is a precondition of per-group execution.</p>
+    </div>
+  </li>
+</ol>
+
+<h2>Available to adopt</h2>
+<p class="wide">
+  All of the above is running, with tests, and can be handed over rather than rebuilt:
+  the RayJob backend and its group routing, entitlement and scoping policy (checkmaite-frontend,
+  139 tests); batch runs scoped to the submitter’s groups; identity read from the gateway-verified
+  ID token; the NetworkPolicy/quota/authorization hardening §4 and §8 call for; and a chart that
+  provisions a group’s namespace, quota, RBAC, hostname and dashboard from a single values entry.
+</p>
+
+<footer class="doc">
+  Prepared against rev c9044c211a88. Measurements are from a single-node cluster with a warm image
+  cache — treat provisioning times as a floor, since a cold image pull or node scale-up adds minutes.
+</footer>
+</div>
