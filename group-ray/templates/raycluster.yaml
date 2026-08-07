@@ -5,6 +5,9 @@
 {{- $worker := fromYaml (include "group-ray.merged" (dict "default" $.Values.worker "override" $group.worker)) }}
 {{- $image := printf "%s:%s" $.Values.image.repository $.Values.image.tag }}
 {{- if $group.image }}{{ $image = $group.image }}{{ end }}
+{{- $warm := $.Values.warmByDefault }}
+{{- if hasKey $group "warm" }}{{ $warm = $group.warm }}{{ end }}
+{{- if $warm }}
 # One long-lived, near-empty cluster per group: the head exists so
 # <group>'s dashboard URL always resolves and submissions always have an
 # endpoint, but it schedules NOTHING (num-cpus: 0). All real work runs on
@@ -118,4 +121,5 @@ spec:
                   nvidia.com/gpu: {{ $gpu.gpus }}
     {{- end }}
 ---
+{{- end }}
 {{- end }}

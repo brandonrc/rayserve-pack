@@ -21,7 +21,7 @@ metadata:
 spec:
   hostname: {{ $host }}
   service:
-    name: {{ $name }}-head-svc
+    name: {{ $name }}-dashboard
     port: 8265
   routing:
     routes:
@@ -39,8 +39,8 @@ spec:
   {{- with $.Values.nebariapp.landingPage }}
   landingPage:
     enabled: {{ .enabled }}
-    displayName: {{ $group.displayName | default (printf "%s — Ray" $group.name) | quote }}
-    description: {{ $group.description | default (printf "Ray cluster for the %s group (workers scale from zero on demand)" $group.name) | quote }}
+    displayName: {{ $group.displayName | default (printf "%s Ray Cluster" (title $group.name)) | quote }}
+    description: {{ $group.description | default (printf "Ray dashboard for the %s group — workers scale from zero on demand" $group.name) | quote }}
     category: {{ .category | quote }}
     priority: {{ .priority }}
     icon: {{ .icon | quote }}

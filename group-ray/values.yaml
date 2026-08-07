@@ -8,14 +8,32 @@
 #
 #   groups:
 #     - name: apple                    # must match the Keycloak group name
+#       warm: true                     # see warmByDefault below
 #       hostname: apple-ray.example.com
 #       quota: {requests.cpu: "8", requests.memory: 16Gi}
 #       worker: {maxReplicas: 3, cpu: "2", memory: 6Gi}      # scales 0..max
 #       gpuWorker: {maxReplicas: 1, gpus: 1}                 # optional, 0..max
 #
-# Idle cost per group = one head pod (headResources below). Everything else
-# materializes when a job asks for it and drains after idleTimeoutSeconds.
 groups: []
+
+# WARM vs DORMANT — the knob that makes many groups affordable.
+#
+#   warm: true   A long-lived head runs for this group. Its dashboard URL is
+#                always live; workers still idle at zero. Cost per idle group is
+#                one head pod (headResources below, ~350m CPU / 2.25Gi with the
+#                autoscaler sidecar).
+#
+#   warm: false  NOTHING runs for this group: no head, no workers, zero CPU,
+#                zero memory, zero GPU. The namespace, quota, RBAC, hostname,
+#                route and landing-page card still exist, and the dashboard
+#                Service selects any Ray head that appears in the namespace —
+#                so the URL returns 503 until a job materializes a cluster
+#                (e.g. an ephemeral RayJob), then serves that job's dashboard
+#                for as long as it runs.
+#
+# At 50 groups, warm-everything is ~17 CPU / 112Gi of pure idle. Default new
+# groups to dormant and promote the handful that want an always-on UI.
+warmByDefault: false
 
 # Hostname suffix used when a group sets no explicit hostname:
 #   <group>-ray.<hostnameSuffix>
@@ -100,8 +118,19 @@ nebariapp:
 # Create the namespaces (set false when a GitOps layer owns them).
 createNamespaces: true
 
-# Submitter ServiceAccount + Role per group namespace, so a shared api (or the
-# Tier-3 RayJob backend) can submit into a group's namespace and nowhere else.
+# Submitter ServiceAccount + Role per group namespace, for workloads running
+# inside the namespace itself.
 submitterRBAC:
   enabled: true
   name: cm-rayjob-submitter
+
+# Grants an EXTERNAL application (a shared CheckMAITE api in its own namespace)
+# the right to create RayJobs in each group's namespace. Without this the api
+# cannot serve a newly added group, and the binding has to be applied by hand —
+# which is the one step that stopped "add a group" from being a values edit.
+apiSubmitter:
+  enabled: false
+  name: checkmaite-rayjob-submitter
+  serviceAccount:
+    name: ""        # e.g. checkmaite-nebari-checkmaite-pack
+    namespace: ""   # e.g. checkmaite

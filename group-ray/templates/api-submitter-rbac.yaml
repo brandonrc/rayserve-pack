@@ -1,0 +1,45 @@
+{{- if .Values.apiSubmitter.enabled }}
+{{- range $group := .Values.groups }}
+{{- $ns := include "group-ray.namespace" $group }}
+{{- $ctx := dict "root" $ "group" $group }}
+# Lets a shared application (the CheckMAITE api) create RayJobs in THIS group's
+# namespace and nowhere else. The set of these bindings is the authorization
+# model for submissions: the api can serve exactly the groups it is bound to,
+# and adding a group is a values edit rather than a hand-applied Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Values.apiSubmitter.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+rules:
+  - apiGroups: ["ray.io"]
+    resources: ["rayjobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # Reading job logs is how the submitter recovers a run's result reference.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Values.apiSubmitter.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "group-ray.labels" $ctx | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ required "apiSubmitter.serviceAccount.name is required" $.Values.apiSubmitter.serviceAccount.name }}
+    namespace: {{ required "apiSubmitter.serviceAccount.namespace is required" $.Values.apiSubmitter.serviceAccount.namespace }}
+roleRef:
+  kind: Role
+  name: {{ $.Values.apiSubmitter.name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
+{{- end }}
