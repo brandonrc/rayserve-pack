@@ -31,7 +31,14 @@ import uuid
 from checkmaite.jobs.protocol import JobStatus
 from cm_rayjob import JobPayload, RayJobK8sBackend
 
-GROUP_TO_NAMESPACE = {"team-a": "cm-team-a", "team-b": "cm-team-b"}
+GROUP_TO_NAMESPACE = {
+    # mapping order = precedence (first mapping entry present in the user's
+    # groups wins) — fruit groups outrank the original team groups
+    "apple": "cm-apple",
+    "banana": "cm-banana",
+    "team-a": "cm-team-a",
+    "team-b": "cm-team-b",
+}
 
 
 def login(keycloak_base: str, username: str, password: str) -> dict:
@@ -62,7 +69,7 @@ def backend_for(claims: dict, image: str) -> tuple[str, RayJobK8sBackend]:
     """The api's policy point: group claim -> target namespace."""
     groups = claims.get("groups") or []
     namespace = next(
-        (GROUP_TO_NAMESPACE[g] for g in groups if g in GROUP_TO_NAMESPACE), None
+        (ns for g, ns in GROUP_TO_NAMESPACE.items() if g in groups), None
     )
     if namespace is None:
         raise SystemExit(f"user {claims.get('preferred_username')} has no mapped group: {groups}")
@@ -111,18 +118,18 @@ def main() -> None:
 
     print("\n=== 4. kubernetes enforces the line, not the app ===")
     out = subprocess.run(
-        ["kubectl", "auth", "can-i", "create", "rayjobs.ray.io", "-n", "cm-team-b",
-         "--as", "system:serviceaccount:cm-team-a:cm-rayjob-submitter"],
+        ["kubectl", "auth", "can-i", "create", "rayjobs.ray.io", "-n", ns_b,
+         "--as", f"system:serviceaccount:{ns_a}:cm-rayjob-submitter"],
         capture_output=True, text=True,
     ).stdout.strip()
-    print(f"  team-a's submitter creating RayJobs in team-b's namespace: {out!r}")
+    print(f"  {ns_a}'s submitter creating RayJobs in {ns_b}: {out!r}")
     assert out == "no", "RBAC must deny cross-namespace submission"
     out = subprocess.run(
-        ["kubectl", "auth", "can-i", "create", "rayjobs.ray.io", "-n", "cm-team-a",
-         "--as", "system:serviceaccount:cm-team-a:cm-rayjob-submitter"],
+        ["kubectl", "auth", "can-i", "create", "rayjobs.ray.io", "-n", ns_a,
+         "--as", f"system:serviceaccount:{ns_a}:cm-rayjob-submitter"],
         capture_output=True, text=True,
     ).stdout.strip()
-    print(f"  ...and in its own namespace: {out!r}")
+    print(f"  ...and in its own namespace ({ns_a}): {out!r}")
     assert out == "yes"
 
     print("\n=== 5. blast radius: alice exceeds HER quota; bob unaffected ===")
@@ -131,7 +138,7 @@ def main() -> None:
     ok_b = submit("bob", be_b, ns_b, sleep_s=2.0)
     rb2 = ok_b.result(timeout=900)
     assert big.status is JobStatus.PENDING, f"oversized job should pend, got {big.status}"
-    print(f"  alice's oversized job: {big.status.value} (held by cm-team-a quota)")
+    print(f"  alice's oversized job: {big.status.value} (held by their namespace quota)")
     print(f"  bob's normal job:      completed (run_uid={rb2.run_uid[:8]})")
     big.cancel()
 
